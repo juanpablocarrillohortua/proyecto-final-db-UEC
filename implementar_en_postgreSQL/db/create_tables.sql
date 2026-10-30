@@ -189,3 +189,63 @@ EXECUTE FUNCTION process_insert_cliente();
 -- INSERT INTO v_clientes (id_codigo, id_region, id_segmento, nit, razon_social, email, telefono)
 -- VALUES (1, 1, 1, '900123456-1', 'Supermercado Central S.A.S.', 'contacto@supercentral.com', '6015551234');
 
+
+CREATE TABLE compra (
+    id_compra BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    fecha_hora TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tipo_compra VARCHAR(64) NOT NULL CHECK (tipo_compra IN ('PRESENCIAL', 'ONLINE')),
+    id_cliente BIGINT NOT NULL,
+
+    FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE envio (
+    id_envio BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    fecha_esperada TIMESTAMPTZ NOT NULL,
+    fecha_entrega TIMESTAMPTZ,
+    id_compra BIGINT NOT NULL,
+
+    FOREIGN KEY (id_compra) REFERENCES compra(id_compra) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE subcategoria (
+    id_subcategoria BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_subcategoria VARCHAR(64) NOT NULL,
+    id_categoria BIGINT,
+
+    FOREIGN KEY (id_categoria) REFERENCES categoria(id_categoria) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE producto (
+    id_producto BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_prod VARCHAR(64) NOT NULL,
+    precio_venta NUMERIC(7, 2) NOT NULL CHECK (precio_venta > 0),
+    precio_compra NUMERIC(7, 2) NOT NULL CHECK (precio_compra > 0),
+    id_subcategoria BIGINT NOT NULL,
+
+    FOREIGN KEY (id_subcategoria) REFERENCES subcategoria(id_subcategoria) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE inventario (
+    id_producto BIGINT NOT NULL,
+    id_sucursal BIGINT NOT NULL,
+    cantidad INTEGER NOT NULL,
+
+    PRIMARY KEY (id_producto, id_sucursal),
+    FOREIGN KEY (id_producto) REFERENCES producto(id_producto) ON UPDATE CASCADE ON DELETE RESTRICT,
+    FOREIGN KEY (id_sucursal) REFERENCES sucursal(id_sucursal) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+
+CREATE TABLE detalle_compra (
+    id_compra BIGINT NOT NULL,
+    id_producto BIGINT NOT NULL,
+    cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    precio_unitario NUMERIC(7, 2) NOT NULL CHECK (precio_unitario > 0),
+    descuento_aplicado NUMERIC(5, 2) DEFAULT 0,
+
+    PRIMARY KEY (id_compra, id_producto),
+    FOREIGN KEY (id_compra) REFERENCES compra(id_compra) ON UPDATE CASCADE ON DELETE RESTRICT,
+    FOREIGN KEY (id_producto) REFERENCES producto(id_producto) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
