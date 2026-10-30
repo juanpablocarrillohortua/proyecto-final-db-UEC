@@ -1,6 +1,6 @@
 CREATE TABLE region (
     id_region BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nombre_region VARCHAR(64) NOT NULL
+    nombre_region VARCHAR(64) NOT NULL UNIQUE
 );
 
 -- Se modela como tabla (y no como CHECK o ENUM) porque se prevé que los
@@ -13,19 +13,19 @@ CREATE TABLE segmento (
 
 CREATE TABLE pais (
     id_pais BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nombre_pais VARCHAR(64) NOT NULL
+    nombre_pais VARCHAR(64) NOT NULL UNIQUE
 );
 
 CREATE TABLE categoria (
     id_categoria BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nombre_categoria VARCHAR(64) NOT NULL
+    nombre_categoria VARCHAR(64) NOT NULL UNIQUE
 );
 
 CREATE TABLE sucursal (
     id_sucursal BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre VARCHAR(128) NOT NULL,
-    latitud NUMERIC(10, 8) NOT NULL,
-    longitud NUMERIC(10, 8) NOT NULL,
+    latitud NUMERIC(10, 8) NOT NULL CHECK (latitud BETWEEN -90 AND 90),
+    longitud NUMERIC(11, 8) NOT NULL CHECK (longitud BETWEEN -180 AND 180),
     direccion VARCHAR(64) NOT NULL,
     tipo VARCHAR(32) NOT NULL,
 
@@ -37,6 +37,7 @@ CREATE TABLE estado_departamento(
     nombre_estado VARCHAR(64) NOT NULL,
     id_pais BIGINT NOT NULL,
 
+    UNIQUE (nombre_estado, id_pais),
     FOREIGN KEY (id_pais) REFERENCES pais(id_pais) ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
@@ -45,13 +46,14 @@ CREATE TABLE ciudad (
     nombre_ciudad VARCHAR(64) NOT NULL,
     id_estado BIGINT NOT NULL,
 
+    UNIQUE (nombre_ciudad, id_estado),
     FOREIGN KEY (id_estado) REFERENCES estado_departamento(id_estado) ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
 CREATE TABLE codigo_postal (
     id_codigo BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre_barrio VARCHAR(64) NOT NULL,
-    codigo VARCHAR(12) NOT NULL CHECK (LENGTH(codigo) = 6),
+    codigo VARCHAR(6) NOT NULL CHECK (codigo ~ '^[0-9]{6}$'),
     id_ciudad BIGINT NOT NULL,
 
     FOREIGN KEY (id_ciudad) REFERENCES ciudad(id_ciudad) ON UPDATE CASCADE ON DELETE RESTRICT
@@ -170,11 +172,14 @@ BEGIN
         RAISE EXCEPTION 'Tipo de cliente no válido: %', v_tipo;
     END IF;
 
+    NEW.id_cliente := v_id_cliente;
+    NEW.tipo_cliente := v_tipo;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_insert_v_clientes
+CREATE OR REPLACE TRIGGER trg_insert_v_clientes
 INSTEAD OF INSERT ON v_clientes
 FOR EACH ROW
 EXECUTE FUNCTION process_insert_cliente();
@@ -183,11 +188,13 @@ EXECUTE FUNCTION process_insert_cliente();
 
 -- para persona natural:
 -- INSERT INTO v_clientes (id_codigo, id_region, id_segmento, cedula, nombre, apellido, email, telefono)
--- VALUES (1, 1, 1, '1018234567', 'Juan', 'Pérez', 'juan@gmail.com', '3001234567');
+-- VALUES (1, 1, 1, '1018234567', 'Juan', 'Pérez', 'juan@gmail.com', '3001234567')
+-- RETURNING id_cliente;
 
 -- para empresa
 -- INSERT INTO v_clientes (id_codigo, id_region, id_segmento, nit, razon_social, email, telefono)
--- VALUES (1, 1, 1, '900123456-1', 'Supermercado Central S.A.S.', 'contacto@supercentral.com', '6015551234');
+-- VALUES (1, 1, 1, '900123456-1', 'Supermercado Central S.A.S.', 'contacto@supercentral.com', '6015551234')
+-- RETURNING id_cliente;
 
 
 CREATE TABLE compra (
@@ -203,7 +210,7 @@ CREATE TABLE envio (
     id_envio BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     fecha_esperada TIMESTAMPTZ NOT NULL,
     fecha_entrega TIMESTAMPTZ,
-    id_compra BIGINT NOT NULL,
+    id_compra BIGINT NOT NULL UNIQUE,
 
     FOREIGN KEY (id_compra) REFERENCES compra(id_compra) ON UPDATE CASCADE ON DELETE RESTRICT
 );
@@ -211,7 +218,7 @@ CREATE TABLE envio (
 CREATE TABLE subcategoria (
     id_subcategoria BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre_subcategoria VARCHAR(64) NOT NULL,
-    id_categoria BIGINT,
+    id_categoria BIGINT NOT NULL,
 
     FOREIGN KEY (id_categoria) REFERENCES categoria(id_categoria) ON UPDATE CASCADE ON DELETE RESTRICT
 );
@@ -219,8 +226,8 @@ CREATE TABLE subcategoria (
 CREATE TABLE producto (
     id_producto BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     nombre_prod VARCHAR(64) NOT NULL,
-    precio_venta NUMERIC(7, 2) NOT NULL CHECK (precio_venta > 0),
-    precio_compra NUMERIC(7, 2) NOT NULL CHECK (precio_compra > 0),
+    precio_venta NUMERIC(12, 2) NOT NULL CHECK (precio_venta > 0),
+    precio_compra NUMERIC(12, 2) NOT NULL CHECK (precio_compra > 0),
     id_subcategoria BIGINT NOT NULL,
 
     FOREIGN KEY (id_subcategoria) REFERENCES subcategoria(id_subcategoria) ON UPDATE CASCADE ON DELETE RESTRICT
@@ -229,7 +236,7 @@ CREATE TABLE producto (
 CREATE TABLE inventario (
     id_producto BIGINT NOT NULL,
     id_sucursal BIGINT NOT NULL,
-    cantidad INTEGER NOT NULL,
+    cantidad INTEGER NOT NULL CHECK (cantidad >= 0),
 
     PRIMARY KEY (id_producto, id_sucursal),
     FOREIGN KEY (id_producto) REFERENCES producto(id_producto) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -241,8 +248,8 @@ CREATE TABLE detalle_compra (
     id_compra BIGINT NOT NULL,
     id_producto BIGINT NOT NULL,
     cantidad INTEGER NOT NULL CHECK (cantidad > 0),
-    precio_unitario NUMERIC(7, 2) NOT NULL CHECK (precio_unitario > 0),
-    descuento_aplicado NUMERIC(5, 2) DEFAULT 0,
+    precio_unitario NUMERIC(12, 2) NOT NULL CHECK (precio_unitario > 0),
+    descuento_aplicado NUMERIC(5, 2) NOT NULL DEFAULT 0 CHECK (descuento_aplicado BETWEEN 0 AND 100),
 
     PRIMARY KEY (id_compra, id_producto),
     FOREIGN KEY (id_compra) REFERENCES compra(id_compra) ON UPDATE CASCADE ON DELETE RESTRICT,
