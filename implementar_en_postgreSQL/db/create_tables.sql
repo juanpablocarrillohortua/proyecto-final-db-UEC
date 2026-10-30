@@ -1,0 +1,191 @@
+CREATE TABLE region (
+    id_region BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_region VARCHAR(64) NOT NULL
+);
+
+-- Se modela como tabla (y no como CHECK o ENUM) porque se prevé que los
+-- segmentos de clientes cambien por razones legales o de negocio; así se
+-- pueden agregar o modificar como datos, sin alterar el esquema.
+CREATE TABLE segmento (
+    id_segmento BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_segmento VARCHAR(128) NOT NULL UNIQUE
+);
+
+CREATE TABLE pais (
+    id_pais BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_pais VARCHAR(64) NOT NULL
+);
+
+CREATE TABLE categoria (
+    id_categoria BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_categoria VARCHAR(64) NOT NULL
+);
+
+CREATE TABLE sucursal (
+    id_sucursal BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre VARCHAR(128) NOT NULL,
+    latitud NUMERIC(10, 8) NOT NULL,
+    longitud NUMERIC(10, 8) NOT NULL,
+    direccion VARCHAR(64) NOT NULL,
+    tipo VARCHAR(32) NOT NULL,
+
+    CONSTRAINT chk_tipo_sucursal CHECK (tipo IN ('TIENDA', 'BODEGA'))
+);
+
+CREATE TABLE estado_departamento(
+    id_estado BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_estado VARCHAR(64) NOT NULL,
+    id_pais BIGINT NOT NULL,
+
+    FOREIGN KEY (id_pais) REFERENCES pais(id_pais) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE ciudad (
+    id_ciudad BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_ciudad VARCHAR(64) NOT NULL,
+    id_estado BIGINT NOT NULL,
+
+    FOREIGN KEY (id_estado) REFERENCES estado_departamento(id_estado) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE codigo_postal (
+    id_codigo BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nombre_barrio VARCHAR(64) NOT NULL,
+    codigo VARCHAR(12) NOT NULL CHECK (LENGTH(codigo) = 6),
+    id_ciudad BIGINT NOT NULL,
+
+    FOREIGN KEY (id_ciudad) REFERENCES ciudad(id_ciudad) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+
+CREATE TABLE cliente (
+    id_cliente BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    tipo_cliente VARCHAR(32) NOT NULL DEFAULT 'NATURAL' CHECK (tipo_cliente IN ('NATURAL', 'CORPORATIVO')),
+    id_codigo BIGINT NOT NULL,
+    id_region BIGINT NOT NULL,
+    id_segmento BIGINT NOT NULL,
+
+    FOREIGN KEY (id_codigo) REFERENCES codigo_postal(id_codigo) ON UPDATE CASCADE ON DELETE RESTRICT,
+    FOREIGN KEY (id_region) REFERENCES region(id_region) ON UPDATE CASCADE ON DELETE RESTRICT,
+    FOREIGN KEY (id_segmento) REFERENCES segmento(id_segmento) ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE TABLE cliente_nat (
+    id_cliente BIGINT PRIMARY KEY,
+    cedula VARCHAR(32) NOT NULL UNIQUE,
+    nombre VARCHAR(128) NOT NULL,
+    apellido VARCHAR(128) NOT NULL,
+    email VARCHAR(255),
+    telefono VARCHAR(15) NOT NULL,
+
+    FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT chk_cedula CHECK (cedula ~ '^[0-9]{5,15}$'),
+    CONSTRAINT chk_email CHECK (
+        email IS NULL OR (
+            btrim(email) <> ''
+            AND btrim(email) ~ '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        )
+    )
+);
+
+CREATE TABLE cliente_corp (
+    id_cliente BIGINT PRIMARY KEY,
+    nit VARCHAR(32) NOT NULL UNIQUE,
+    razon_social VARCHAR(128) NOT NULL,
+    email VARCHAR(255),
+    telefono VARCHAR(15) NOT NULL,
+
+    FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT chk_nit CHECK (nit ~ '^[0-9]{5,11}-[0-9]$'),
+    CONSTRAINT chk_email CHECK (
+        email IS NULL OR (
+            btrim(email) <> ''
+            AND btrim(email) ~ '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        )
+    )
+);
+
+-- Insersion simple de clientes nuevos implementado con un trigger que intercepta
+-- una insersion a una vista, usa el INSTEAD OF que se explico en las presentaciones
+CREATE VIEW v_clientes AS
+SELECT
+    c.id_cliente,
+    c.tipo_cliente,
+    c.id_codigo,
+    c.id_region,
+    c.id_segmento,
+    cn.cedula,
+    cn.nombre,
+    cn.apellido,
+    cc.nit,
+    cc.razon_social,
+    COALESCE(cn.email, cc.email) AS email,
+    COALESCE(cn.telefono, cc.telefono) AS telefono
+FROM cliente c
+LEFT JOIN cliente_nat cn ON c.id_cliente = cn.id_cliente
+LEFT JOIN cliente_corp cc ON c.id_cliente = cc.id_cliente;
+
+
+
+CREATE OR REPLACE FUNCTION process_insert_cliente()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_id_cliente BIGINT;
+    v_tipo VARCHAR(32);
+BEGIN
+
+    IF NEW.cedula IS NOT NULL AND NEW.nit IS NOT NULL THEN
+        RAISE EXCEPTION 'No se pueden proporcionar Cédula y NIT simultáneamente. Debe ingresar uno u otro.';
+    END IF;
+
+    IF NEW.tipo_cliente IS NOT NULL THEN
+        v_tipo := UPPER(NEW.tipo_cliente);
+    ELSIF NEW.cedula IS NOT NULL THEN
+        v_tipo := 'NATURAL';
+    ELSIF NEW.nit IS NOT NULL THEN
+        v_tipo := 'CORPORATIVO';
+    ELSE
+        RAISE EXCEPTION 'Debe proporcionar una cédula (Natural) o un NIT (Corporativo).';
+    END IF;
+
+    IF v_tipo = 'NATURAL' AND NEW.cedula IS NULL THEN
+        RAISE EXCEPTION 'Para un cliente NATURAL debe proporcionar la cédula.';
+    ELSIF v_tipo = 'CORPORATIVO' AND NEW.nit IS NULL THEN
+        RAISE EXCEPTION 'Para un cliente CORPORATIVO debe proporcionar el NIT.';
+    END IF;
+
+    INSERT INTO cliente (tipo_cliente, id_codigo, id_region, id_segmento)
+    VALUES (v_tipo, NEW.id_codigo, NEW.id_region, NEW.id_segmento)
+    RETURNING id_cliente INTO v_id_cliente;
+
+    IF v_tipo = 'NATURAL' THEN
+        INSERT INTO cliente_nat (id_cliente, cedula, nombre, apellido, email, telefono)
+        VALUES (v_id_cliente, NEW.cedula, NEW.nombre, NEW.apellido, NEW.email, NEW.telefono);
+
+    ELSIF v_tipo = 'CORPORATIVO' THEN
+        INSERT INTO cliente_corp (id_cliente, nit, razon_social, email, telefono)
+        VALUES (v_id_cliente, NEW.nit, NEW.razon_social, NEW.email, NEW.telefono);
+
+    ELSE
+        RAISE EXCEPTION 'Tipo de cliente no válido: %', v_tipo;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_insert_v_clientes
+INSTEAD OF INSERT ON v_clientes
+FOR EACH ROW
+EXECUTE FUNCTION process_insert_cliente();
+
+-- Ejemplos de insersion
+
+-- para persona natural:
+-- INSERT INTO v_clientes (id_codigo, id_region, id_segmento, cedula, nombre, apellido, email, telefono)
+-- VALUES (1, 1, 1, '1018234567', 'Juan', 'Pérez', 'juan@gmail.com', '3001234567');
+
+-- para empresa
+-- INSERT INTO v_clientes (id_codigo, id_region, id_segmento, nit, razon_social, email, telefono)
+-- VALUES (1, 1, 1, '900123456-1', 'Supermercado Central S.A.S.', 'contacto@supercentral.com', '6015551234');
+
