@@ -202,8 +202,12 @@ CREATE TABLE compra (
     fecha_hora TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     tipo_compra VARCHAR(64) NOT NULL CHECK (tipo_compra IN ('PRESENCIAL', 'ONLINE')),
     id_cliente BIGINT NOT NULL,
+    id_sucursal BIGINT NOT NULL,
 
-    FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON UPDATE CASCADE ON DELETE RESTRICT
+    FOREIGN KEY (id_cliente) REFERENCES cliente(id_cliente) ON UPDATE CASCADE ON DELETE RESTRICT,
+    -- Se verifica que sea el tipo correcto con un trigger
+    FOREIGN KEY (id_sucursal) REFERENCES sucursal(id_sucursal)
+        ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
 CREATE TABLE envio (
@@ -256,3 +260,55 @@ CREATE TABLE detalle_compra (
     FOREIGN KEY (id_producto) REFERENCES producto(id_producto) ON UPDATE CASCADE ON DELETE RESTRICT
 );
 
+-- Regla 12: compra ONLINE -> se despacha desde una BODEGA;
+--           compra PRESENCIAL -> se realiza en una TIENDA.
+-- Verifica que la insersion tenga sentido de negocio.
+CREATE OR REPLACE FUNCTION validar_sucursal_compra()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo_sucursal VARCHAR(32);
+BEGIN
+    SELECT tipo INTO v_tipo_sucursal
+    FROM sucursal
+    WHERE id_sucursal = NEW.id_sucursal;
+
+    IF NEW.tipo_compra = 'ONLINE' AND v_tipo_sucursal <> 'BODEGA' THEN
+        RAISE EXCEPTION 'Una compra ONLINE debe registrarse en una BODEGA (la sucursal % es %).',
+            NEW.id_sucursal, v_tipo_sucursal;
+    ELSIF NEW.tipo_compra = 'PRESENCIAL' AND v_tipo_sucursal <> 'TIENDA' THEN
+        RAISE EXCEPTION 'Una compra PRESENCIAL debe registrarse en una TIENDA (la sucursal % es %).',
+            NEW.id_sucursal, v_tipo_sucursal;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_validar_sucursal_compra
+BEFORE INSERT ON compra
+FOR EACH ROW
+EXECUTE FUNCTION validar_sucursal_compra();
+
+-- Regla 1: solo las compras ONLINE pueden tener envío.
+CREATE OR REPLACE FUNCTION validar_envio_compra()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_tipo_compra VARCHAR(64);
+BEGIN
+    SELECT tipo_compra INTO v_tipo_compra
+    FROM compra
+    WHERE id_compra = NEW.id_compra;
+
+    IF v_tipo_compra <> 'ONLINE' THEN
+        RAISE EXCEPTION 'La compra % es %; solo las compras ONLINE pueden tener envío.',
+            NEW.id_compra, v_tipo_compra;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_validar_envio_compra
+BEFORE INSERT OR UPDATE OF id_compra ON envio
+FOR EACH ROW
+EXECUTE FUNCTION validar_envio_compra();
