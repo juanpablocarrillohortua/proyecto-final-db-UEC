@@ -229,7 +229,7 @@ CREATE TABLE subcategoria (
 
 CREATE TABLE producto (
     id_producto BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nombre_prod VARCHAR(64) NOT NULL,
+    nombre_prod VARCHAR(128) NOT NULL,
     precio_venta NUMERIC(12, 2) NOT NULL CHECK (precio_venta > 0),
     precio_compra NUMERIC(12, 2) NOT NULL CHECK (precio_compra > 0),
     id_subcategoria BIGINT NOT NULL,
