@@ -1,3 +1,16 @@
+DROP FUNCTION IF EXISTS evolucion_periodo;
+DROP FUNCTION IF EXISTS ventas_por_ubicacion;
+DROP FUNCTION IF EXISTS obtener_utilidad_por_categoria_o_subcategoria;
+DROP PROCEDURE IF EXISTS ventas_segmento;
+DROP VIEW IF EXISTS v_utilidad_anual, v_utilidad_trimestral, v_utilidad_mensual,
+    v_productos_temporada, v_entrega_por_bodega, v_entrega_total,
+    v_ventas_pais, v_ventas_estado, v_ventas_ciudad, v_ventas_codigo_postal,
+    v_ventas_segmento, ventas_con_descuento, utilidad_por_subcategoria,
+    utilidad_por_categoria, ventas_por_tipo_cliente, compras_con_lineas,
+    ventas_por_region_volumen;
+DROP VIEW IF EXISTS v_ventas_ubicacion, v_tiempos_entrega;
+DROP VIEW IF EXISTS v_lineas_venta;
+
 -- Venta y utilidad de cada línea de compra.
 
 CREATE VIEW v_lineas_venta AS
@@ -44,13 +57,14 @@ WHERE e.fecha_entrega IS NOT NULL;
 
 -- Por AÑO
 
+CREATE VIEW v_utilidad_anual AS
 SELECT
-    EXTRACT(YEAR FROM c.fecha_hora) AS anio,
-    ROUND(SUM(CASE 
+    EXTRACT(YEAR FROM c.fecha_hora)::INT AS anio,
+    ROUND(SUM(CASE
                 WHEN l.utilidad > 0 THEN l.utilidad
                 ELSE 0 END), 2) AS ganancias,
-    ROUND(SUM(CASE 
-                WHEN l.utilidad < 0 THEN l.utilidad 
+    ROUND(SUM(CASE
+                WHEN l.utilidad < 0 THEN l.utilidad
                 ELSE 0 END), 2) AS perdidas,
     ROUND(SUM(l.utilidad), 2) AS utilidad_neta
 FROM v_lineas_venta l
@@ -61,14 +75,15 @@ ORDER BY anio;
 
 -- Por TRIMESTRE
 
+CREATE VIEW v_utilidad_trimestral AS
 SELECT
-    EXTRACT(YEAR FROM c.fecha_hora) AS anio,
-    EXTRACT(QUARTER FROM c.fecha_hora) AS trimestre,
+    EXTRACT(YEAR FROM c.fecha_hora)::INT AS anio,
+    EXTRACT(QUARTER FROM c.fecha_hora)::INT AS trimestre,
     ROUND(SUM(CASE
-                WHEN l.utilidad > 0 THEN l.utilidad 
+                WHEN l.utilidad > 0 THEN l.utilidad
                 ELSE 0 END), 2) AS ganancias,
     ROUND(SUM(CASE
-                WHEN l.utilidad < 0 THEN l.utilidad 
+                WHEN l.utilidad < 0 THEN l.utilidad
                 ELSE 0 END), 2) AS perdidas,
     ROUND(SUM(l.utilidad), 2) AS utilidad_neta
 FROM v_lineas_venta l
@@ -79,14 +94,15 @@ ORDER BY anio, trimestre;
 
 -- Por MES
 
+CREATE VIEW v_utilidad_mensual AS
 SELECT
-    EXTRACT(YEAR FROM c.fecha_hora) AS anio,
-    EXTRACT(MONTH FROM c.fecha_hora) AS mes,
+    EXTRACT(YEAR FROM c.fecha_hora)::INT AS anio,
+    EXTRACT(MONTH FROM c.fecha_hora)::INT AS mes,
     ROUND(SUM(CASE
-                WHEN l.utilidad > 0 THEN l.utilidad 
+                WHEN l.utilidad > 0 THEN l.utilidad
                 ELSE 0 END), 2) AS ganancias,
     ROUND(SUM(CASE
-                WHEN l.utilidad < 0 THEN l.utilidad 
+                WHEN l.utilidad < 0 THEN l.utilidad
                 ELSE 0 END), 2) AS perdidas,
     ROUND(SUM(l.utilidad), 2) AS utilidad_neta
 FROM v_lineas_venta l
@@ -95,8 +111,40 @@ GROUP BY anio, mes
 HAVING SUM(l.venta) > 0
 ORDER BY anio, mes;
 
+
+CREATE OR REPLACE FUNCTION evolucion_periodo(tipo_agrupacion TEXT)
+RETURNS TABLE (
+    anio INTEGER,
+    periodo INTEGER,
+    ganancias NUMERIC,
+    perdidas NUMERIC,
+    utilidad_neta NUMERIC
+) AS $$
+BEGIN
+    IF tipo_agrupacion = 'anio' THEN
+        RETURN QUERY
+            SELECT v.anio, NULL::INTEGER, v.ganancias, v.perdidas, v.utilidad_neta
+            FROM v_utilidad_anual AS v
+            ORDER BY v.anio;
+    ELSIF tipo_agrupacion = 'mes' THEN
+        RETURN QUERY
+            SELECT v.anio, v.mes, v.ganancias, v.perdidas, v.utilidad_neta
+            FROM v_utilidad_mensual AS v
+            ORDER BY v.anio, v.mes;
+    ELSIF tipo_agrupacion = 'trimestre' THEN
+        RETURN QUERY
+            SELECT v.anio, v.trimestre, v.ganancias, v.perdidas, v.utilidad_neta
+            FROM v_utilidad_trimestral AS v
+            ORDER BY v.anio, v.trimestre;
+    ELSE
+        RAISE EXCEPTION 'Tipo de agrupación inválido. Use "anio", "mes" o "trimestre".';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ¿Cuáles son los productos más vendidos según la temporada?
 
+CREATE VIEW v_productos_temporada AS
 WITH ventas_temporada AS (
     SELECT
         EXTRACT(QUARTER FROM c.fecha_hora) AS trimestre,
@@ -116,6 +164,7 @@ ORDER BY trimestre, unidades_vendidas DESC;
 
 -- Por BODEGA
 
+CREATE VIEW v_entrega_por_bodega AS
 SELECT
     s.nombre AS bodega,
     COUNT(*) AS envios,
@@ -130,6 +179,7 @@ ORDER BY diferencia DESC;
 
 -- Total de todos los envios
 
+CREATE VIEW v_entrega_total AS
 SELECT
     COUNT(*) AS envios,
     ROUND(AVG(dias_esperados), 2) AS dias_esperados,
@@ -142,6 +192,7 @@ FROM v_tiempos_entrega;
 
 -- PAIS
 
+CREATE VIEW v_ventas_pais AS
 SELECT pais, ROUND(SUM(venta), 2) AS ventas
 FROM v_ventas_ubicacion
 GROUP BY pais
@@ -150,6 +201,7 @@ ORDER BY ventas DESC;
 
 -- ESTADO
 
+CREATE VIEW v_ventas_estado AS
 SELECT estado, ROUND(SUM(venta), 2) AS ventas
 FROM v_ventas_ubicacion
 GROUP BY estado
@@ -158,6 +210,7 @@ ORDER BY ventas DESC;
 
 -- CIUDAD
 
+CREATE VIEW v_ventas_ciudad AS
 SELECT ciudad, estado, ROUND(SUM(venta), 2) AS ventas
 FROM v_ventas_ubicacion
 GROUP BY ciudad, estado
@@ -166,13 +219,61 @@ ORDER BY ventas DESC;
 
 -- CODIGO POSTAL
 
+CREATE VIEW v_ventas_codigo_postal AS
 SELECT codigo_postal, ciudad, ROUND(SUM(venta), 2) AS ventas
 FROM v_ventas_ubicacion
 GROUP BY codigo_postal, ciudad
 HAVING SUM(venta) >= 20000
 ORDER BY ventas DESC;
 
+CREATE OR REPLACE FUNCTION ventas_por_ubicacion(tipo_agrupacion TEXT)
+RETURNS TABLE (
+    ubicacion VARCHAR,
+    ubicacion_padre VARCHAR,
+    ventas NUMERIC
+) AS $$
+BEGIN
+    IF tipo_agrupacion = 'pais' THEN
+        RETURN QUERY
+            SELECT v.pais, NULL::VARCHAR, v.ventas
+            FROM v_ventas_pais AS v
+            ORDER BY v.ventas DESC;
+    ELSIF tipo_agrupacion = 'estado' THEN
+        RETURN QUERY
+            SELECT v.estado, NULL::VARCHAR, v.ventas
+            FROM v_ventas_estado AS v
+            ORDER BY v.ventas DESC;
+    ELSIF tipo_agrupacion = 'ciudad' THEN
+        RETURN QUERY
+            SELECT v.ciudad, v.estado, v.ventas
+            FROM v_ventas_ciudad AS v
+            ORDER BY v.ventas DESC;
+    ELSIF tipo_agrupacion = 'codigo_postal' THEN
+        RETURN QUERY
+            SELECT v.codigo_postal, v.ciudad, v.ventas
+            FROM v_ventas_codigo_postal AS v
+            ORDER BY v.ventas DESC;
+    ELSE
+        RAISE EXCEPTION 'Tipo de agrupación inválido. Use "pais", "estado", "ciudad" o "codigo_postal".';
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ¿Cómo se distribuyen las ventas y la utilidad entre los distintos segmentos de clientes?
+
+CREATE VIEW v_ventas_segmento AS
+SELECT
+    sg.nombre_segmento AS segmento,
+    ROUND(SUM(l.venta), 2) AS ventas,
+    ROUND(100 * SUM(l.venta) / (SELECT SUM(venta) FROM v_lineas_venta), 2) AS porcentaje_ventas,
+    ROUND(SUM(l.utilidad), 2) AS utilidad_total,
+    ROUND(100 * SUM(l.utilidad) / (SELECT SUM(utilidad) FROM v_lineas_venta), 2) AS porcentaje_utilidad
+FROM v_lineas_venta l
+JOIN compra c ON c.id_compra = l.id_compra
+JOIN cliente cl ON cl.id_cliente = c.id_cliente
+JOIN segmento sg ON sg.id_segmento = cl.id_segmento
+GROUP BY sg.nombre_segmento
+HAVING SUM(l.venta) > 0;
 
 CREATE OR REPLACE PROCEDURE ventas_segmento(
     IN p_segmento VARCHAR,
@@ -183,19 +284,10 @@ CREATE OR REPLACE PROCEDURE ventas_segmento(
 )
 AS $$
 BEGIN
-    SELECT
-        ROUND(SUM(l.venta), 2),
-        ROUND(100 * SUM(l.venta) / (SELECT SUM(venta) FROM v_lineas_venta), 2),
-        ROUND(SUM(l.utilidad), 2),
-        ROUND(100 * SUM(l.utilidad) / (SELECT SUM(utilidad) FROM v_lineas_venta), 2)
+    SELECT v.ventas, v.porcentaje_ventas, v.utilidad_total, v.porcentaje_utilidad
     INTO ventas, porcentaje_ventas, utilidad_total, porcentaje_utilidad
-    FROM v_lineas_venta l
-    JOIN compra c ON c.id_compra = l.id_compra
-    JOIN cliente cl ON cl.id_cliente = c.id_cliente
-    JOIN segmento sg ON sg.id_segmento = cl.id_segmento
-    WHERE sg.nombre_segmento = p_segmento
-    GROUP BY sg.nombre_segmento
-    HAVING SUM(l.venta) > 0;
+    FROM v_ventas_segmento AS v
+    WHERE v.segmento = p_segmento;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -205,7 +297,6 @@ $$ LANGUAGE plpgsql;
 -- ¿Qué tan eficaces son los descuentos para impulsar las ventas y cómo
 -- afectan la utilidad?
 
-DROP VIEW IF EXISTS ventas_con_descuento;
 CREATE VIEW ventas_con_descuento AS
 SELECT
     CASE
@@ -232,7 +323,7 @@ GROUP BY descuento;
 -- ¿Qué categorías y subcategorías dan la mayor utilidad,
 -- y cuáles generan pérdidas?
 
-CREATE OR REPLACE VIEW utilidad_por_subcategoria AS
+CREATE VIEW utilidad_por_subcategoria AS
 SELECT
     sc.nombre_subcategoria,
     SUM(dt.cantidad) AS unidades_vendidas,
@@ -249,7 +340,7 @@ GROUP BY sc.nombre_subcategoria
 ORDER BY porcentaje_margen_utilidad DESC;
 
 
-CREATE OR REPLACE VIEW utilidad_por_categoria AS
+CREATE VIEW utilidad_por_categoria AS
 
 SELECT
     c.nombre_categoria,
@@ -294,7 +385,7 @@ $$ LANGUAGE plpgsql;
 
 -- ¿Qué tipo de clientes concentran el mayor valor total de compras?
 
-CREATE OR REPLACE VIEW ventas_por_tipo_cliente AS
+CREATE VIEW ventas_por_tipo_cliente AS
 WITH ventas_por_cliente AS (
     SELECT
         c.tipo_cliente,
@@ -327,7 +418,7 @@ ORDER BY valor_total_compras DESC;
 -- 9. ¿Cuál es el valor promedio de una compra y cuántas líneas de detalle
 -- (entradas en la tabla detalle de compra) contiene en promedio?
 
-CREATE OR REPLACE VIEW compras_con_lineas AS
+CREATE VIEW compras_con_lineas AS
 WITH compras_con_lineas AS (
     SELECT
         co.id_compra,
@@ -347,7 +438,7 @@ FROM compras_con_lineas;
 -- ¿Existen regiones donde un alto volumen de ventas coincida con una utilidad
 --baja o negativa?
 
-CREATE OR REPLACE VIEW ventas_por_region_volumen AS
+CREATE VIEW ventas_por_region_volumen AS
 WITH ventas_por_region AS (
     SELECT
         r.id_region,
@@ -381,9 +472,3 @@ SELECT
 FROM ventas_por_region AS v
 CROSS JOIN promedios AS p
 ORDER BY v.total_ventas DESC;
-
-
-
-CALL ventas_segmento('Consumer', NULL, NULL, NULL, NULL);
-CALL ventas_segmento('Corporate', NULL, NULL, NULL, NULL);
-CALL ventas_segmento('Home Office', NULL, NULL, NULL, NULL);
