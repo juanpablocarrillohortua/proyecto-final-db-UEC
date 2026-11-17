@@ -20,10 +20,9 @@ Proyecto final de **Bases de Datos** · Universidad Externado de Colombia · Dep
 1. [Introducción](#1-introducción)
 2. [Estructura](#2-estructura)
 3. [Paso a paso](#3-paso-a-paso)
-   - [3.1 Requisitos](#31-requisitos) · [3.2 Obtener el proyecto](#32-obtener-el-proyecto) · [3.3 Preparar psql](#33-preparar-psql) · [3.4 Crear la base de datos y el esquema](#34-crear-la-base-de-datos-y-el-esquema)
-   - [3.5 Cargar los datos](#35-cargar-los-datos) · [3.6 Verificar la carga](#36-verificar-la-carga) · [3.7 Ejecutar las consultas de negocio](#37-ejecutar-las-consultas-de-negocio) · [3.8 Transacción de compra](#38-transacción-de-compra)
-   - [3.9 Optimización con índices](#39-optimización-con-índices) · [3.10 MongoDB (opcional)](#310-mongodb-opcional) · [3.11 Regenerar los datos (opcional)](#311-regenerar-los-datos-opcional) · [3.12 Ver los diagramas](#312-ver-los-diagramas)
-   - [3.13 Empezar de cero](#313-empezar-de-cero) · [3.14 Problemas frecuentes](#314-problemas-frecuentes)
+   - [3.1 Requisitos](#31-requisitos) · [3.2 Obtener el proyecto](#32-obtener-el-proyecto) · [3.3 Preparar el entorno de Python](#33-preparar-el-entorno-de-python) · [3.4 Preparar psql](#34-preparar-psql)
+   - [3.5 Crear la base de datos y el esquema](#35-crear-la-base-de-datos-y-el-esquema) · [3.6 Cargar los datos](#36-cargar-los-datos) · [3.7 Verificar la carga](#37-verificar-la-carga) · [3.8 Ejecutar las consultas de negocio](#38-ejecutar-las-consultas-de-negocio)
+   - [3.9 Transacción de compra](#39-transacción-de-compra) · [3.10 Optimización con índices](#310-optimización-con-índices) · [3.11 MongoDB (opcional)](#311-mongodb-opcional) · [3.12 Problemas frecuentes](#312-problemas-frecuentes)
 
 ---
 
@@ -84,7 +83,7 @@ Se diseñó una **base de datos relacional normalizada** (3FN y BCNF) que:
 | Herramienta | Uso en el proyecto |
 |---|---|
 | **PostgreSQL 18** (`psql`, PL/pgSQL) | Esquema, *triggers*, vistas, funciones, procedimientos, transacción e índices |
-| **Python 3.10 o superior** | Generador de datos, llamada a la transacción y migración a MongoDB |
+| **Python 3.11 o superior** | Generador de datos, llamada a la transacción y migración a MongoDB |
 | **pandas**, **kagglehub**, **Jupyter** | Exploración del dataset original y generación del script de inserción |
 | **SQLAlchemy**, **psycopg 3**, **pydantic**, **pydantic-settings** | Conexión a PostgreSQL y lectura de la configuración (`config.py`, `.env`) |
 | **MongoDB**, **mongosh**, **pymongo** | Catálogo de productos como base documental |
@@ -103,6 +102,7 @@ proyecto-final-db-UEC/
 ├── LICENSE.txt
 ├── CLAUDE.md                                   Guía de contexto para Claude Code
 ├── config.py                                   Configuración (lee las variables de .env)
+├── requirements.txt                            Dependencias de Python (pip install -r)
 ├── .env.example                                Plantilla de variables de entorno
 │
 ├── formulacion_problema/
@@ -176,9 +176,9 @@ proyecto-final-db-UEC/
 
 ## 3. Paso a paso
 
-Esta sección instala lo necesario para **revisar y calificar el proyecto** y explica cada herramienta. Los comandos están escritos para **Windows PowerShell** (la terminal de VS Code); al final de [3.3](#33-preparar-psql) hay un cuadro con los equivalentes para Linux y macOS.
+Esta sección instala lo necesario para **revisar y calificar el proyecto** y explica cada herramienta. Los comandos están escritos para **Windows PowerShell** (la terminal de VS Code); al final de [3.4](#34-preparar-psql) hay un cuadro con los equivalentes para Linux y macOS.
 
-> **Ruta rápida para calificar.** Basta con PostgreSQL y los pasos 3.1 (solo PostgreSQL y Git), 3.2, 3.3, 3.4, 3.5, 3.6 y 3.7. Los pasos 3.8 a 3.12 son opcionales y profundizan en transacciones, optimización, MongoDB y regeneración de datos.
+> **Ruta rápida para calificar.** Basta con PostgreSQL y Git: pasos 3.1, 3.2 y 3.4 a 3.8. Los demás son opcionales: 3.3 prepara Python (solo hace falta para llamar la transacción desde Python en 3.9 y para MongoDB en 3.11), y 3.9 y 3.10 profundizan en transacciones y optimización.
 
 ### 3.1 Requisitos
 
@@ -186,8 +186,8 @@ Esta sección instala lo necesario para **revisar y calificar el proyecto** y ex
 |---|---|---|---|
 | [Git](https://git-scm.com/downloads) | cualquiera | Clonar el repositorio | Sí |
 | [PostgreSQL](https://www.postgresql.org/download/) (incluye `psql`) | 18 (el respaldo se generó con la 18.6) | Crear y consultar la base de datos | Sí |
-| [Python](https://www.python.org/downloads/) | 3.10 o superior | Transacción desde Python, MongoDB y regeneración de datos | Solo pasos 3.8, 3.10 y 3.11 |
-| [MongoDB Community Server](https://www.mongodb.com/try/download/community) y [mongosh](https://www.mongodb.com/try/download/shell) | reciente | Catálogo en MongoDB | Solo paso 3.10 |
+| [Python](https://www.python.org/downloads/) | 3.11 o superior (probado con 3.14) | Transacción desde Python, MongoDB, generador de datos y cuaderno | Solo pasos 3.3, 3.9 (llamada desde Python) y 3.11 |
+| [MongoDB Community Server](https://www.mongodb.com/try/download/community) y [mongosh](https://www.mongodb.com/try/download/shell) | reciente | Catálogo en MongoDB | Solo paso 3.11 |
 | [draw.io](https://www.drawio.com/) o la extensión de VS Code | cualquiera | Abrir los `.drawio` | No (hay `.png`) |
 
 Comprobar lo instalado:
@@ -206,7 +206,41 @@ cd proyecto-final-db-UEC
 
 Todos los comandos siguientes se ejecutan **desde esta carpeta** (la raíz del repositorio).
 
-### 3.3 Preparar psql
+### 3.3 Preparar el entorno de Python
+
+Los scripts de Python del proyecto (transacción de compra, migración a MongoDB, generador de datos y cuaderno) usan las librerías de [`requirements.txt`](requirements.txt). Este paso se hace **una sola vez**, justo después de clonar, porque necesita los archivos `requirements.txt` y `.env.example` del repositorio. Si solo va a revisar la base de datos en PostgreSQL, puede saltarlo.
+
+```powershell
+Copy-Item .env.example .env
+notepad .env        # escriba la contraseña en POSTGRES_PASSWORD
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+- **`.env`** guarda la conexión que lee `config.py`. Las variables vacías toman su valor por defecto: PostgreSQL en `localhost:5432`, usuario `postgres`, base `supermercado`; MongoDB en `localhost:27017`, sin autenticación, base `product_catalog`. Solo es obligatorio escribir `POSTGRES_PASSWORD`. El archivo está en `.gitignore`, por lo que no se sube al repositorio.
+- **`.venv`** es un entorno virtual: instala las librerías solo para este proyecto, sin tocar el Python del sistema. Cuando está activo, el prompt empieza con `(.venv)`; hay que activarlo de nuevo en cada terminal nueva.
+- **`pip install -r requirements.txt`** instala de una vez todas las librerías:
+
+| Librería | ¿Para qué? |
+|---|---|
+| `sqlalchemy` y `psycopg[binary]` | Conectarse a PostgreSQL (transacción de compra y migración a MongoDB) |
+| `pydantic` y `pydantic-settings` | Validar los datos de la migración y leer `.env` en `config.py` |
+| `pymongo` | Conectarse a MongoDB |
+| `pandas` | Generador de datos (`generar_insert_data.py`) y cuaderno de exploración |
+| `kagglehub` | Descargar el dataset original desde el cuaderno |
+| `ipykernel` | Ejecutar el cuaderno en VS Code |
+
+En Linux o macOS:
+
+```bash
+cp .env.example .env
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 3.4 Preparar psql
 
 En Windows, el instalador de PostgreSQL no agrega `psql` al `PATH`. Agréguelo solo para la terminal actual (cambie `18` si instaló otra versión) y fije la codificación para que las tildes se lean bien:
 
@@ -232,7 +266,7 @@ Esto debe repetirse cada vez que se abra una terminal nueva.
 | `$env:PYTHONPATH = "."` | `export PYTHONPATH=.` |
 | `'{\"10\": [5.0, 1]}'` (argumento JSON en PowerShell 5.1) | `'{"10": [5.0, 1]}'` |
 
-### 3.4 Crear la base de datos y el esquema
+### 3.5 Crear la base de datos y el esquema
 
 ```powershell
 psql -U postgres -h localhost -c "CREATE DATABASE supermercado"
@@ -241,7 +275,7 @@ psql -U postgres -h localhost -d supermercado -v ON_ERROR_STOP=1 -f implementar_
 
 `create_tables.sql` crea las 17 tablas, la vista `v_clientes` (con su *trigger* `INSTEAD OF INSERT`) y los *triggers* de las reglas 1 y 12. Debe ejecutarse **una sola vez** sobre una base vacía.
 
-### 3.5 Cargar los datos
+### 3.6 Cargar los datos
 
 **Opción A (recomendada): script de inserción.** Vacía las tablas, reinicia los identificadores y carga todo dentro de una transacción, por lo que puede repetirse sin problema:
 
@@ -249,7 +283,7 @@ psql -U postgres -h localhost -d supermercado -v ON_ERROR_STOP=1 -f implementar_
 psql -U postgres -h localhost -d supermercado -v ON_ERROR_STOP=1 -f implementar_en_postgreSQL/db/insert_data.sql
 ```
 
-**Opción B (atajo): restaurar el respaldo.** Sirve en lugar de los pasos 3.4 y 3.5 y debe hacerse sobre una base **vacía** (solo `CREATE DATABASE`, sin `create_tables.sql`). El archivo `backup_supermercado.sql` está guardado en UTF-16 y `psql` no lo lee directamente, así que primero se convierte una copia a UTF-8 en la carpeta temporal, sin modificar el repositorio:
+**Opción B (atajo): restaurar el respaldo.** Sirve en lugar de los pasos 3.5 y 3.6 y debe hacerse sobre una base **vacía** (solo `CREATE DATABASE`, sin `create_tables.sql`). El archivo `backup_supermercado.sql` está guardado en UTF-16 y `psql` no lo lee directamente, así que primero se convierte una copia a UTF-8 en la carpeta temporal, sin modificar el repositorio:
 
 ```powershell
 psql -U postgres -h localhost -c "CREATE DATABASE supermercado"
@@ -263,11 +297,11 @@ psql -U postgres -h localhost -d supermercado -v ON_ERROR_STOP=1 -f $destino
 Remove-Item $destino
 ```
 
-El respaldo contiene el esquema, los datos, las vistas y funciones de [3.7](#37-ejecutar-las-consultas-de-negocio) y el procedimiento `ventas_segmento`. **No** incluye el procedimiento `comprar` ni los índices: para ellos siga los pasos 3.8 y 3.9.
+El respaldo contiene el esquema, los datos, las vistas y funciones de [3.8](#38-ejecutar-las-consultas-de-negocio) y el procedimiento `ventas_segmento`. **No** incluye el procedimiento `comprar` ni los índices: para ellos siga los pasos 3.9 y 3.10.
 
 En Linux o macOS la conversión es `iconv -f UTF-16 -t UTF-8 implementar_en_postgreSQL/db/backup_supermercado.sql > /tmp/backup_utf8.sql`.
 
-### 3.6 Verificar la carga
+### 3.7 Verificar la carga
 
 Abra una sesión de `psql`:
 
@@ -297,7 +331,7 @@ UNION ALL SELECT 'detalle_compra', COUNT(*) FROM detalle_compra
 UNION ALL SELECT 'envio', COUNT(*) FROM envio;
 ```
 
-Resultado esperado justo después de cargar los datos (antes de registrar compras nuevas en 3.8):
+Resultado esperado justo después de cargar los datos (antes de registrar compras nuevas en 3.9):
 
 | tabla | filas | | tabla | filas |
 |---|---:|---|---|---:|
@@ -313,7 +347,7 @@ Resultado esperado justo después de cargar los datos (antes de registrar compra
 
 Para salir de `psql` escriba `\q`.
 
-### 3.7 Ejecutar las consultas de negocio
+### 3.8 Ejecutar las consultas de negocio
 
 `preguntas_negocio.sql` crea las vistas, funciones y procedimientos que responden las 10 preguntas del planteamiento (el script borra y recrea los objetos, por lo que puede repetirse). Después, `ejemplo_llamadas.sql` los invoca todos:
 
@@ -343,7 +377,7 @@ CALL ventas_segmento('Consumer', NULL, NULL, NULL, NULL);
 
 La tabla que relaciona cada pregunta con su vista, función o procedimiento está en [`implementar_en_postgreSQL/queries/README.md`](implementar_en_postgreSQL/queries/README.md).
 
-### 3.8 Transacción de compra
+### 3.9 Transacción de compra
 
 El procedimiento `comprar()` registra la compra, sus detalles y descuenta el inventario como una sola unidad: si algo falla, no queda ningún cambio. La explicación de ACID, concurrencia y aislamiento está en [`optimizacion_transacciones/transacciones/README.md`](optimizacion_transacciones/transacciones/README.md).
 
@@ -369,17 +403,7 @@ Por la regla 12, una compra `ONLINE` solo se acepta en una sucursal de tipo `BOD
 SELECT id_sucursal, nombre, tipo FROM sucursal ORDER BY id_sucursal;
 ```
 
-**Llamarlo desde Python.** Prepare el entorno una sola vez:
-
-```powershell
-Copy-Item .env.example .env
-notepad .env        # escriba la contraseña en POSTGRES_PASSWORD
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install sqlalchemy "psycopg[binary]" pydantic pydantic-settings pymongo
-```
-
-Las variables vacías de `.env` toman su valor por defecto (servidor `localhost`, puerto `5432`, usuario `postgres`, base `supermercado`). Luego ejecute los scripts **desde la raíz del repositorio** y con `PYTHONPATH` apuntando a ella, porque importan `config.py`:
+**Llamarlo desde Python.** Requiere el entorno de [3.3](#33-preparar-el-entorno-de-python) activo (`(.venv)` en el prompt) y la contraseña escrita en `.env`. Ejecute los scripts **desde la raíz del repositorio** y con `PYTHONPATH` apuntando a ella, porque importan `config.py`:
 
 ```powershell
 $env:PYTHONPATH = "."
@@ -393,9 +417,9 @@ python optimizacion_transacciones/transacciones/llamar_transaccion.py 100 4 '{\"
 
 Al terminar bien imprime `Ejecucion exitosa.`; si la transacción falla (por ejemplo, una compra `ONLINE` en una tienda), imprime el error y no se guarda nada. Las barras `\"` del JSON son necesarias en Windows PowerShell 5.1; en PowerShell 7 o bash se escribe `'{"10": [5.0, 1]}'`.
 
-### 3.9 Optimización con índices
+### 3.10 Optimización con índices
 
-`queries_optimization.sql` analiza con `EXPLAIN ANALYZE` dos consultas, propone dos índices (`idx_detalle_compra_covering` e `idx_compra_fecha_cliente`) y vuelve a analizarlas. Requiere haber ejecutado [3.7](#37-ejecutar-las-consultas-de-negocio) (usa la vista `v_lineas_venta`) y debe correrse **una sola vez**, porque crea los índices:
+`queries_optimization.sql` analiza con `EXPLAIN ANALYZE` dos consultas, propone dos índices (`idx_detalle_compra_covering` e `idx_compra_fecha_cliente`) y vuelve a analizarlas. Requiere haber ejecutado [3.8](#38-ejecutar-las-consultas-de-negocio) (usa la vista `v_lineas_venta`) y debe correrse **una sola vez**, porque crea los índices:
 
 ```powershell
 psql -U postgres -h localhost -d supermercado -P pager=off -f optimizacion_transacciones/optimizacion/queries_optimization.sql
@@ -403,9 +427,9 @@ psql -U postgres -h localhost -d supermercado -P pager=off -f optimizacion_trans
 
 Los resultados comparados de los planes antes y después están en [`resultados_consulta_1.md`](optimizacion_transacciones/optimizacion/metricas_pre_post_optim/resultados_consulta_1.md) y [`resultados_consulta_2.md`](optimizacion_transacciones/optimizacion/metricas_pre_post_optim/resultados_consulta_2.md).
 
-### 3.10 MongoDB (opcional)
+### 3.11 MongoDB (opcional)
 
-Migra el catálogo (categorías, subcategorías y productos) de PostgreSQL a MongoDB. Requiere MongoDB en ejecución, el entorno de Python de [3.8](#38-transacción-de-compra) y los datos de PostgreSQL ya cargados. Por defecto se conecta a `localhost:27017`, sin autenticación, y usa la base `product_catalog`; para cambiarlo edite las variables `MONGO_*` de `.env`.
+Migra el catálogo (categorías, subcategorías y productos) de PostgreSQL a MongoDB. Requiere MongoDB en ejecución, el entorno de Python de [3.3](#33-preparar-el-entorno-de-python) activo y los datos de PostgreSQL ya cargados. Por defecto se conecta a `localhost:27017`, sin autenticación, y usa la base `product_catalog`; para cambiarlo edite las variables `MONGO_*` de `.env`.
 
 ```powershell
 # 1. Crear las colecciones, la validación JSON Schema y los índices
@@ -418,52 +442,18 @@ python mongo_db/insertions/insertions.py
 
 El segundo comando imprime cuántos documentos insertó en `categorias`, `subcategorias` y `productos`. Los índices únicos hacen que se pueda repetir sin duplicar documentos.
 
-### 3.11 Regenerar los datos (opcional)
-
-`insert_data.sql` ya viene generado, así que **este paso no es necesario para calificar**. Sirve para entender de dónde salen los datos o para cambiar la simulación.
-
-```powershell
-pip install pandas kagglehub jupyter
-jupyter notebook notebooks/original_data.ipynb
-```
-
-El cuaderno descarga el dataset con `kagglehub` y lo copia a `data/` (carpeta ignorada por Git). Si prefiere descargarlo a mano desde [Kaggle](https://www.kaggle.com/datasets/vivek468/superstore-dataset-final), guarde el archivo como `data/Sample - Superstore.csv`. Luego:
-
-```powershell
-python implementar_en_postgreSQL/db/generar_insert_data.py
-```
-
-Esto reescribe `implementar_en_postgreSQL/db/insert_data.sql`; el generador usa semillas fijas (`random.seed(42)` y `setseed(0.42)`). Después se carga de nuevo con el comando de [3.5](#35-cargar-los-datos).
-
-### 3.12 Ver los diagramas
-
-Los archivos `.png` se abren con cualquier visor. Para editar los `.drawio`, abra [draw.io](https://www.drawio.com/) o instale la extensión de VS Code:
-
-```powershell
-code --install-extension hediet.vscode-drawio
-```
-
-El PDF del planteamiento está en `formulacion_problema/`.
-
-### 3.13 Empezar de cero
-
-Borra la base de datos completa (esquema y datos) para repetir la instalación desde 3.4:
-
-```powershell
-psql -U postgres -h localhost -d postgres -c "DROP DATABASE IF EXISTS supermercado"
-```
-
-### 3.14 Problemas frecuentes
+### 3.12 Problemas frecuentes
 
 | Síntoma | Causa y solución |
 |---|---|
-| `psql` no se reconoce como comando | Falta agregarlo al `PATH` de la terminal: vea [3.3](#33-preparar-psql) |
+| `psql` no se reconoce como comando | Falta agregarlo al `PATH` de la terminal: vea [3.4](#34-preparar-psql) |
 | `password authentication failed` | La contraseña del usuario `postgres` es incorrecta (la definió al instalar PostgreSQL) |
 | `Connection refused` | El servicio está detenido. En PowerShell como administrador: `Start-Service postgresql-x64-18` (si no lo encuentra, `Get-Service postgresql*`) |
 | Tildes o caracteres extraños (`Bogot├í`) | Ejecute `$env:PGCLIENTENCODING = "UTF8"` y, si persiste, `chcp 65001` |
-| `relation ... already exists` al crear el esquema | `create_tables.sql` ya se ejecutó. Empiece de cero con [3.13](#313-empezar-de-cero) |
-| `invalid byte sequence for encoding "UTF8"` al restaurar el respaldo | El respaldo está en UTF-16: conviértalo como se indica en [3.5](#35-cargar-los-datos), Opción B |
+| `relation ... already exists` al crear el esquema | `create_tables.sql` ya se ejecutó. Borre la base con `psql -U postgres -h localhost -d postgres -c "DROP DATABASE IF EXISTS supermercado"` (elimina esquema y datos) y repita desde [3.5](#35-crear-la-base-de-datos-y-el-esquema) |
+| `invalid byte sequence for encoding "UTF8"` al restaurar el respaldo | El respaldo está en UTF-16: conviértalo como se indica en [3.6](#36-cargar-los-datos), Opción B |
+| `ModuleNotFoundError: No module named 'sqlalchemy'` (o `pydantic`, `pymongo`, `pandas`...) | El entorno virtual no está activo o faltan las librerías: ejecute `.\.venv\Scripts\Activate.ps1` y `pip install -r requirements.txt` ([3.3](#33-preparar-el-entorno-de-python)) |
 | `ModuleNotFoundError: No module named 'config'` | Ejecute el script desde la raíz del repositorio con `$env:PYTHONPATH = "."` |
 | `Una compra ONLINE debe registrarse en una BODEGA` | Use una sucursal de tipo `BODEGA` (4, 8, 12 o 16) para compras `ONLINE` |
-| `Expecting property name enclosed in double quotes` | El JSON del carrito perdió las comillas: use `\"` en PowerShell 5.1 ([3.8](#38-transacción-de-compra)) |
+| `Expecting property name enclosed in double quotes` | El JSON del carrito perdió las comillas: use `\"` en PowerShell 5.1 ([3.9](#39-transacción-de-compra)) |
 | `Activate.ps1 cannot be loaded` | Permita scripts en esta terminal: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` |
