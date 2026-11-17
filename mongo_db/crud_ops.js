@@ -26,6 +26,15 @@ db.productos.aggregate([
       path: "$subcategoria",
       preserveNullAndEmptyArrays: true
         }
+    },
+    {
+        $project: {
+            _id:0,
+            nombre_prod:1,
+            precio_venta:1,
+            precio_compra:1,
+            nombre_subcategoria:"$subcategoria.nombre_subcategoria"
+        }
     }
 ])
 
