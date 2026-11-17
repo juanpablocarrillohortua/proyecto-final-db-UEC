@@ -22,7 +22,7 @@ Proyecto final de **Bases de Datos** · Universidad Externado de Colombia · Dep
 3. [Paso a paso](#3-paso-a-paso)
    - [3.1 Requisitos](#31-requisitos) · [3.2 Obtener el proyecto](#32-obtener-el-proyecto) · [3.3 Preparar el entorno de Python](#33-preparar-el-entorno-de-python) · [3.4 Preparar psql](#34-preparar-psql)
    - [3.5 Crear la base de datos y el esquema](#35-crear-la-base-de-datos-y-el-esquema) · [3.6 Cargar los datos](#36-cargar-los-datos) · [3.7 Verificar la carga](#37-verificar-la-carga) · [3.8 Ejecutar las consultas de negocio](#38-ejecutar-las-consultas-de-negocio)
-   - [3.9 Transacción de compra](#39-transacción-de-compra) · [3.10 Optimización con índices](#310-optimización-con-índices) · [3.11 MongoDB (opcional)](#311-mongodb-opcional) · [3.12 Problemas frecuentes](#312-problemas-frecuentes)
+   - [3.9 Transacción de compra](#39-transacción-de-compra) · [3.10 Optimización con índices](#310-optimización-con-índices) · [3.11 MongoDB](#311-mongodb) · [3.12 Problemas frecuentes](#312-problemas-frecuentes)
 
 ---
 
@@ -178,7 +178,6 @@ proyecto-final-db-UEC/
 
 Esta sección instala lo necesario para **revisar y calificar el proyecto** y explica cada herramienta. Los comandos están escritos para **Windows PowerShell** (la terminal de VS Code); al final de [3.4](#34-preparar-psql) hay un cuadro con los equivalentes para Linux y macOS.
 
-> **Ruta rápida para calificar.** Basta con PostgreSQL y Git: pasos 3.1, 3.2 y 3.4 a 3.8. Los demás son opcionales: 3.3 prepara Python (solo hace falta para llamar la transacción desde Python en 3.9 y para MongoDB en 3.11), y 3.9 y 3.10 profundizan en transacciones y optimización.
 
 ### 3.1 Requisitos
 
@@ -427,7 +426,7 @@ psql -U postgres -h localhost -d supermercado -P pager=off -f optimizacion_trans
 
 Los resultados comparados de los planes antes y después están en [`resultados_consulta_1.md`](optimizacion_transacciones/optimizacion/metricas_pre_post_optim/resultados_consulta_1.md) y [`resultados_consulta_2.md`](optimizacion_transacciones/optimizacion/metricas_pre_post_optim/resultados_consulta_2.md).
 
-### 3.11 MongoDB (opcional)
+### 3.11 MongoDB
 
 Migra el catálogo (categorías, subcategorías y productos) de PostgreSQL a MongoDB. Requiere MongoDB en ejecución, el entorno de Python de [3.3](#33-preparar-el-entorno-de-python) activo y los datos de PostgreSQL ya cargados. Por defecto se conecta a `localhost:27017`, sin autenticación, y usa la base `product_catalog`; para cambiarlo edite las variables `MONGO_*` de `.env`.
 
